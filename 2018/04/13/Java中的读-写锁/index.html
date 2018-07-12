@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html>
+    <!-- title -->
+
+
+
+
+
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" >
+    <meta name="description" content="">
+    <title>Java中的读/写锁 · zhs&#39;s Studio</title>
+    <style type="text/css">
+    @font-face {
+        font-family: 'Oswald-Regular';
+        src: url("/font/Oswald-Regular.ttf");
+    }
+
+    body {
+        margin: 0;
+    }
+
+    header,
+    footer,
+    .back-top,
+    .sidebar,
+    .container,
+    .site-intro-meta,
+    .toc-wrapper {
+        display: none;
+    }
+
+    .site-intro {
+        position: relative;
+        z-index: 3;
+        width: 100%;
+        /* height: 50vh; */
+        overflow: hidden;
+    }
+
+    .site-intro-placeholder {
+        position: absolute;
+        z-index: -2;
+        top: 0;
+        left: 0;
+        width: calc(100% + 300px);
+        height: 100%;
+        background: repeating-linear-gradient(-45deg, #444 0, #444 80px, #333 80px, #333 160px);
+        background-position: center center;
+        transform: translate3d(-226px, 0, 0);
+        animation: gradient-move 2.5s ease-out 0s 1;
+    }
+
+    @keyframes gradient-move {
+        0% {
+            transform: translate3d(-226px, 0, 0);
+        }
+        100% {
+            transform: translate3d(0, 0, 0);
+        }
+    }
+
+</style>
+
+    <link rel="preload" href= /css/style.css?v=20180317 as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="stylesheet" type="text/css" href= /css/mobile.css?v=20180317 media="(max-width: 980px)"/>
+    
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.2.5/jquery.fancybox.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+        
+    <link rel="icon" href= /assets/favicon.ico>
+    <script>
+        (function (w) {
+            "use strict";
+            // rel=preload support test
+            if (!w.loadCSS) {
+                w.loadCSS = function () { };
+            }
+            // define on the loadCSS obj
+            var rp = loadCSS.relpreload = {};
+            // rel=preload feature support test
+            // runs once and returns a function for compat purposes
+            rp.support = (function () {
+                var ret;
+                try {
+                    ret = w.document.createElement("link").relList.supports("preload");
+                } catch (e) {
+                    ret = false;
+                }
+                return function () {
+                    return ret;
+                };
+            })();
+
+            // if preload isn't supported, get an asynchronous load by using a non-matching media attribute
+            // then change that media back to its intended value on load
+            rp.bindMediaToggle = function (link) {
+                // remember existing media attr for ultimate state, or default to 'all'
+                var finalMedia = link.media || "all";
+
+                function enableStylesheet() {
+                    link.media = finalMedia;
+                }
+
+                // bind load handlers to enable media
+                if (link.addEventListener) {
+                    link.addEventListener("load", enableStylesheet);
+                } else if (link.attachEvent) {
+                    link.attachEvent("onload", enableStylesheet);
+                }
+
+                // Set rel and non-applicable media type to start an async request
+                // note: timeout allows this to happen async to let rendering continue in IE
+                setTimeout(function () {
+                    link.rel = "stylesheet";
+                    link.media = "only x";
+                });
+                // also enable media after 3 seconds,
+                // which will catch very old browsers (android 2.x, old firefox) that don't support onload on link
+                setTimeout(enableStylesheet, 3000);
+            };
+
+            // loop through link elements in DOM
+            rp.poly = function () {
+                // double check this to prevent external calls from running
+                if (rp.support()) {
+                    return;
+                }
+                var links = w.document.getElementsByTagName("link");
+                for (var i = 0; i < links.length; i++) {
+                    var link = links[i];
+                    // qualify links to those with rel=preload and as=style attrs
+                    if (link.rel === "preload" && link.getAttribute("as") === "style" && !link.getAttribute("data-loadcss")) {
+                        // prevent rerunning on link
+                        link.setAttribute("data-loadcss", true);
+                        // bind listeners to toggle media back
+                        rp.bindMediaToggle(link);
+                    }
+                }
+            };
+
+            // if unsupported, run the polyfill
+            if (!rp.support()) {
+                // run once at least
+                rp.poly();
+
+                // rerun poly on an interval until onload
+                var run = w.setInterval(rp.poly, 500);
+                if (w.addEventListener) {
+                    w.addEventListener("load", function () {
+                        rp.poly();
+                        w.clearInterval(run);
+                    });
+                } else if (w.attachEvent) {
+                    w.attachEvent("onload", function () {
+                        rp.poly();
+                        w.clearInterval(run);
+                    });
+                }
+            }
+            // commonjs
+            if (typeof exports !== "undefined") {
+                exports.loadCSS = loadCSS;
+            }
+            else {
+                w.loadCSS = loadCSS;
+            }
+        }(typeof global !== "undefined" ? global : this));
+    </script>
+    <script src="//cdn.staticfile.org/jquery/3.2.1/jquery.min.js" defer></script>
+    <script src="/scripts/main.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.2.5/jquery.fancybox.min.js" defer></script>
+    <!-- 百度统计  -->
+    
+    <!-- 谷歌统计  -->
+    
+</head>
+
+    
+        <body class="post-body">
+    
+    
+<header class="header">
+
+    <div class="read-progress"></div>
+    <div class="header-sidebar-menu">&#xe775;</div>
+    <!-- post页的toggle banner  -->
+    
+    <div class="banner">
+            <div class="blog-title">
+                <a href="/" >zhs&#39;s Studio.</a>
+            </div>
+            <div class="post-title">
+                <a href="#" class="post-name">Java中的读/写锁</a>
+            </div>
+    </div>
+    
+    <a class="home-link" href=/>zhs's Studio.</a>
+</header>
+    <div class="wrapper">
+        <div class="site-intro" style=
+
+
+
+
+
+
+
+
+height:50vh;
+
+>
+    
+    <!-- 主页  -->
+    
+    
+    <!-- 404页  -->
+            
+    <div class="site-intro-img" style="background-image: url(/intro/post-bg.jpg)"></div>
+    <div class="site-intro-placeholder"></div>
+    <div class="site-intro-meta">
+        <!-- 标题  -->
+        <h1 class="intro-title">
+            <!-- 主页  -->
+            
+            Java中的读/写锁
+            <!-- 404 -->
+            
+        </h1>
+        <!-- 副标题 -->
+        <p class="intro-subtitle">
+            <!-- 主页副标题  -->
+            
+            
+            <!-- 404 -->
+            
+        </p>
+        <!-- 文章页meta -->
+        
+            <!-- 文章页标签  -->
+            
+                <div class= post-intro-tags >
+    
+        <a class="post-tag" href="javascript:void(0);" data-tags = "Java">Java</a>
+    
+        <a class="post-tag" href="javascript:void(0);" data-tags = "并发编程">并发编程</a>
+    
+</div>
+            
+            <div class="post-intro-meta">
+                <span class="post-intro-calander iconfont-archer">&#xe676;</span>
+                <span class="post-intro-time">2018/04/13</span>
+                
+                <span id="busuanzi_container_page_pv" class="busuanzi-pv">
+                    <span class="iconfont-archer">&#xe602;</span>
+                    <span id="busuanzi_value_page_pv"></span>
+                </span>
+                
+                <span class="shareWrapper">
+                    <span class="iconfont-archer shareIcon">&#xe71d;</span>
+                    <span class="shareText">Share</span>
+                    <ul class="shareList">
+                        <li class="iconfont-archer share-qr" data-type="qr">&#xe75b;
+                            <div class="share-qrcode"></div>
+                        </li>
+                        <li class="iconfont-archer" data-type="weibo">&#xe619;</li>
+                        <li class="iconfont-archer" data-type="qzone">&#xe62e;</li>
+                        <li class="iconfont-archer" data-type="twitter">&#xe634;</li>
+                        <li class="iconfont-archer" data-type="facebook">&#xe67a;</li>
+                    </ul>
+                </span>
+            </div>
+        
+    </div>
+</div>
+        <script>
+  // load webfont-loader async, and add callback function
+  function async(u, c) {
+    var d = document, t = 'script',
+      o = d.createElement(t),
+      s = d.getElementsByTagName(t)[0];
+    o.src = u;
+    if (c) { o.addEventListener('load', function (e) { c(null, e); }, false); }
+    s.parentNode.insertBefore(o, s);
+  }
+  
+  // get user agent
+  var browser = {
+    versions: function () {
+      var u = window.navigator.userAgent;
+      return {
+        userAgent: u,
+        trident: u.indexOf('Trident') > -1, //IE内核
+        presto: u.indexOf('Presto') > -1, //opera内核
+        webKit: u.indexOf('AppleWebKit') > -1, //苹果、谷歌内核
+        gecko: u.indexOf('Gecko') > -1 && u.indexOf('KHTML') == -1, //火狐内核
+        mobile: !!u.match(/AppleWebKit.*Mobile.*/), //是否为移动终端
+        ios: !!u.match(/\(i[^;]+;( U;)? CPU.+Mac OS X/), //ios终端
+        android: u.indexOf('Android') > -1 || u.indexOf('Linux') > -1, //android终端或者uc浏览器
+        iPhone: u.indexOf('iPhone') > -1 || u.indexOf('Mac') > -1, //是否为iPhone或者安卓QQ浏览器
+        iPad: u.indexOf('iPad') > -1, //是否为iPad
+        webApp: u.indexOf('Safari') == -1, //是否为web应用程序，没有头部与底部
+        weixin: u.indexOf('MicroMessenger') == -1, //是否为微信浏览器
+        uc: u.indexOf('UCBrowser') > -1 //是否为android下的UC浏览器
+      };
+    }()
+  }
+  console.log("userAgent:" + browser.versions.userAgent);
+
+  // callback
+  function fontLoaded() {
+    console.log('font loaded');
+    if (document.getElementsByClassName('site-intro-meta')) {
+      document.getElementsByClassName('intro-title')[0].classList.add('intro-fade-in');
+      document.getElementsByClassName('intro-subtitle')[0].classList.add('intro-fade-in');
+      var postIntroTags = document.getElementsByClassName('post-intro-tags')[0],
+        postIntroMeat = document.getElementsByClassName('post-intro-meta')[0];
+      if (postIntroTags) {
+        postIntroTags.classList.add('post-fade-in');
+      }
+      if (postIntroMeat) {
+        postIntroMeat.classList.add('post-fade-in');
+      }
+    }
+  }
+
+  // UC不支持跨域，所以直接显示
+  function asyncCb(){
+    if (browser.versions.uc) {
+      console.log("UCBrowser");
+      fontLoaded();
+    } else {
+      WebFont.load({
+        custom: {
+          families: ['Oswald-Regular']
+        },
+        loading: function () {  //所有字体开始加载
+          // console.log('loading');
+        },
+        active: function () {  //所有字体已渲染
+          fontLoaded();
+        },
+        inactive: function () { //字体预加载失败，无效字体或浏览器不支持加载
+          console.log('inactive: timeout');
+          fontLoaded();
+        },
+        timeout: 5000 // Set the timeout to two seconds
+      });
+    }
+  }
+
+  async("https://cdn.jsdelivr.net/npm/webfontloader@1.6.28/webfontloader.min.js", asyncCb)
+</script>        
+        <img class="loading" src="/assets/loading.svg" style="display: block; margin: 6rem auto 0 auto; width: 6rem; height: 6rem;" />
+        <div class="container container-unloaded">
+            <main class="main post-page">
+    <article class="article-entry">
+        <p>转自<a href="http://ifeve.com/read-write-locks/" target="_blank" rel="external">http://ifeve.com/read-write-locks/</a></p>
+<p>假设你的程序中涉及到对一些共享资源的读和写操作，且写操作没有读操作那么频繁。在没有写操作的时候，两个线程同时读一个资源没有任何问题，所以应该允许多个线程能在同时读取共享资源。但是如果有一个线程想去写这些共享资源，就不应该再有其它线程对该资源进行读或写（译者注：也就是说：读-读能共存，读-写不能共存，写-写不能共存）。这就需要一个读/写锁来解决这个问题。</p>
+<p>Java5在java.util.concurrent包中已经包含了读写锁。</p>
+<p><strong>读/写锁(read-write-locks)的Java实现</strong></p>
+<p>先让我们对读写访问资源的条件做个概述：</p>
+<p>读取 没有线程正在做写操作，且没有线程在请求写操作。</p>
+<p>写入 没有线程正在做读写操作。</p>
+<p>如果某个线程想要读取资源，只要没有线程正在对该资源进行写操作且没有线程请求对该资源的写操作即可。我们假设对写操作的请求比对读操作的请求更重要，就要提升写请求的优先级。此外，如果读操作发生的比较频繁，我们又没有提升写操作的优先级，那么就会产生“饥饿”现象。请求写操作的线程会一直阻塞，直到所有的读线程都从ReadWriteLock上解锁了。如果一直保证新线程的读操作权限，那么等待写操作的线程就会一直阻塞下去，结果就是发生“饥饿”。因此，只有当没有线程正在锁住ReadWriteLock进行写操作，且没有线程请求该锁准备执行写操作时，才能保证读操作继续。</p>
+<p>当其它线程没有对共享资源进行读操作或者写操作时，某个线程就有可能获得该共享资源的写锁，进而对共享资源进行写操作。有多少线程请求了写锁以及以何种顺序请求写锁并不重要，除非你想保证写锁请求的公平性。</p>
+<p>按照上面的叙述，简单的实现出一个读/写锁，代码如下<br><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ReadWriteLock</span></span>&#123;</div><div class="line">	<span class="keyword">private</span> <span class="keyword">int</span> readers = <span class="number">0</span>;</div><div class="line">	<span class="keyword">private</span> <span class="keyword">int</span> writers = <span class="number">0</span>;</div><div class="line">	<span class="keyword">private</span> <span class="keyword">int</span> writeRequests = <span class="number">0</span>;</div><div class="line"></div><div class="line">	<span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">lockRead</span><span class="params">()</span> </span></div><div class="line"><span class="function">		<span class="keyword">throws</span> InterruptedException</span>&#123;</div><div class="line">		<span class="keyword">while</span>(writers &gt; <span class="number">0</span> || writeRequests &gt; <span class="number">0</span>)&#123;</div><div class="line">			wait();</div><div class="line">		&#125;</div><div class="line">		readers++;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	<span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">unlockRead</span><span class="params">()</span></span>&#123;</div><div class="line">		readers--;</div><div class="line">		notifyAll();</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	<span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">lockWrite</span><span class="params">()</span> </span></div><div class="line"><span class="function">		<span class="keyword">throws</span> InterruptedException</span>&#123;</div><div class="line">		writeRequests++;</div><div class="line"></div><div class="line">		<span class="keyword">while</span>(readers &gt; <span class="number">0</span> || writers &gt; <span class="number">0</span>)&#123;</div><div class="line">			wait();</div><div class="line">		&#125;</div><div class="line">		writeRequests--;</div><div class="line">		writers++;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	<span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">unlockWrite</span><span class="params">()</span> </span></div><div class="line"><span class="function">		<span class="keyword">throws</span> InterruptedException</span>&#123;</div><div class="line">		writers--;</div><div class="line">		notifyAll();</div><div class="line">	&#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure></p>
+<p>ReadWriteLock类中，读锁和写锁各有一个获取锁和释放锁的方法。</p>
+<p>读锁的实现在lockRead()中,只要没有线程拥有写锁（writers==0），且没有线程在请求写锁（writeRequests ==0），所有想获得读锁的线程都能成功获取。</p>
+<p>写锁的实现在lockWrite()中,当一个线程想获得写锁的时候，首先会把写锁请求数加1（writeRequests++），然后再去判断是否能够真能获得写锁，当没有线程持有读锁（readers==0 ）,且没有线程持有写锁（writers==0）时就能获得写锁。有多少线程在请求写锁并无关系。</p>
+<p>需要注意的是，在两个释放锁的方法（unlockRead，unlockWrite）中，都调用了notifyAll方法，而不是notify。要解释这个原因，我们可以想象下面一种情形：</p>
+<p>如果有线程在等待获取读锁，同时又有线程在等待获取写锁。如果这时其中一个等待读锁的线程被notify方法唤醒，但因为此时仍有请求写锁的线程存在（writeRequests&gt;0），所以被唤醒的线程会再次进入阻塞状态。然而，等待写锁的线程一个也没被唤醒，就像什么也没发生过一样（<em>译者注：信号丢失现象</em>）。如果用的是notifyAll方法，所有的线程都会被唤醒，然后判断能否获得其请求的锁。</p>
+<p>用notifyAll还有一个好处。如果有多个读线程在等待读锁且没有线程在等待写锁时，调用unlockWrite()后，所有等待读锁的线程都能立马成功获取读锁 —— 而不是一次只允许一个。</p>
+<h4 id="读-写锁的重入"><a href="#读-写锁的重入" class="headerlink" title="读/写锁的重入"></a>读/写锁的重入</h4><p>上面实现的读/写锁(ReadWriteLock) 是不可重入的，当一个已经持有写锁的线程再次请求写锁时，就会被阻塞。原因是已经有一个写线程了——就是它自己。此外，考虑下面的例子：</p>
+<ol>
+<li>Thread 1 获得了读锁</li>
+<li>Thread 2 请求写锁，但因为Thread 1 持有了读锁，所以写锁请求被阻塞。</li>
+<li>Thread 1 再想请求一次读锁，但因为Thread 2处于请求写锁的状态，所以想再次获取读锁也会被阻塞。</li>
+</ol>
+<p>上面这种情形使用前面的ReadWriteLock就会被锁定——一种类似于死锁的情形。不会再有线程能够成功获取读锁或写锁了。</p>
+<p>为了让ReadWriteLock可重入，需要对它做一些改进。下面会分别处理读锁的重入和写锁的重入。</p>
+<h4 id="读锁重入"><a href="#读锁重入" class="headerlink" title="读锁重入"></a>读锁重入</h4><p>为了让ReadWriteLock的读锁可重入，我们要先为读锁重入建立规则：</p>
+<ul>
+<li>要保证某个线程中的读锁可重入，要么满足获取读锁的条件（没有写或写请求），要么已经持有读锁（不管是否有写请求）。</li>
+</ul>
+<p>要确定一个线程是否已经持有读锁，可以用一个map来存储已经持有读锁的线程以及对应线程获取读锁的次数，当需要判断某个线程能否获得读锁时，就利用map中存储的数据进行判断。下面是方法lockRead和unlockRead修改后的的代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div></pre></td><td class="code"><pre><div class="line">public class ReadWriteLock&#123;</div><div class="line">	private Map&lt;Thread, Integer&gt; readingThreads =</div><div class="line">		new HashMap&lt;Thread, Integer&gt;();</div><div class="line"></div><div class="line">	private int writers = 0;</div><div class="line">	private int writeRequests = 0;</div><div class="line"></div><div class="line">	public synchronized void lockRead() </div><div class="line">		throws InterruptedException&#123;</div><div class="line">		Thread callingThread = Thread.currentThread();</div><div class="line">		while(! canGrantReadAccess(callingThread))&#123;</div><div class="line">			wait();                                                                   </div><div class="line">		&#125;</div><div class="line"></div><div class="line">		readingThreads.put(callingThread,</div><div class="line">			(getAccessCount(callingThread) + 1));</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	public synchronized void unlockRead()&#123;</div><div class="line">		Thread callingThread = Thread.currentThread();</div><div class="line">		int accessCount = getAccessCount(callingThread);</div><div class="line">		if(accessCount == 1) &#123; </div><div class="line">			readingThreads.remove(callingThread); </div><div class="line">		&#125; else &#123;</div><div class="line">			readingThreads.put(callingThread, (accessCount -1)); </div><div class="line">		&#125;</div><div class="line">		notifyAll();</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean canGrantReadAccess(Thread callingThread)&#123;</div><div class="line">		if(writers &gt; 0) return false;</div><div class="line">		if(isReader(callingThread) return true;</div><div class="line">		if(writeRequests &gt; 0) return false;</div><div class="line">		return true;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private int getReadAccessCount(Thread callingThread)&#123;</div><div class="line">		Integer accessCount = readingThreads.get(callingThread);</div><div class="line">		if(accessCount == null) return 0;</div><div class="line">		return accessCount.intValue();</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean isReader(Thread callingThread)&#123;</div><div class="line">		return readingThreads.get(callingThread) != null;</div><div class="line">	&#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>代码中我们可以看到，只有在没有线程拥有写锁的情况下才允许读锁的重入。此外，重入的读锁比写锁优先级高。</p>
+<h4 id="写锁重入"><a href="#写锁重入" class="headerlink" title="写锁重入"></a>写锁重入</h4><p>仅当一个线程已经持有写锁，才允许写锁重入（再次获得写锁）。下面是方法lockWrite和unlockWrite修改后的的代码。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div></pre></td><td class="code"><pre><div class="line">public class ReadWriteLock&#123;</div><div class="line">	private Map&lt;Thread, Integer&gt; readingThreads =</div><div class="line">		new HashMap&lt;Thread, Integer&gt;();</div><div class="line"></div><div class="line">	private int writeAccesses    = 0;</div><div class="line">	private int writeRequests    = 0;</div><div class="line">	private Thread writingThread = null;</div><div class="line"></div><div class="line">	public synchronized void lockWrite() </div><div class="line">		throws InterruptedException&#123;</div><div class="line">		writeRequests++;</div><div class="line">		Thread callingThread = Thread.currentThread();</div><div class="line">		while(!canGrantWriteAccess(callingThread))&#123;</div><div class="line">			wait();</div><div class="line">		&#125;</div><div class="line">		writeRequests--;</div><div class="line">		writeAccesses++;</div><div class="line">		writingThread = callingThread;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	public synchronized void unlockWrite() </div><div class="line">		throws InterruptedException&#123;</div><div class="line">		writeAccesses--;</div><div class="line">		if(writeAccesses == 0)&#123;</div><div class="line">			writingThread = null;</div><div class="line">		&#125;</div><div class="line">		notifyAll();</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean canGrantWriteAccess(Thread callingThread)&#123;</div><div class="line">		if(hasReaders()) return false;</div><div class="line">		if(writingThread == null)    return true;</div><div class="line">		if(!isWriter(callingThread)) return false;</div><div class="line">		return true;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean hasReaders()&#123;</div><div class="line">		return readingThreads.size() &gt; 0;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean isWriter(Thread callingThread)&#123;</div><div class="line">		return writingThread == callingThread;</div><div class="line">	&#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>注意在确定当前线程是否能够获取写锁的时候，是如何处理的。</p>
+<h4 id="读锁升级到写锁"><a href="#读锁升级到写锁" class="headerlink" title="读锁升级到写锁"></a>读锁升级到写锁</h4><p>有时，我们希望一个拥有读锁的线程，也能获得写锁。想要允许这样的操作，要求这个线程是唯一一个拥有读锁的线程。writeLock()需要做点改动来达到这个目的：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div></pre></td><td class="code"><pre><div class="line">public class ReadWriteLock&#123;</div><div class="line">	private Map&lt;Thread, Integer&gt; readingThreads =</div><div class="line">		new HashMap&lt;Thread, Integer&gt;();</div><div class="line"></div><div class="line">	private int writeAccesses    = 0;</div><div class="line">	private int writeRequests    = 0;</div><div class="line">	private Thread writingThread = null;</div><div class="line"></div><div class="line">	public synchronized void lockWrite() </div><div class="line">		throws InterruptedException&#123;</div><div class="line">		writeRequests++;</div><div class="line">		Thread callingThread = Thread.currentThread();</div><div class="line">		while(!canGrantWriteAccess(callingThread))&#123;</div><div class="line">			wait();</div><div class="line">		&#125;</div><div class="line">		writeRequests--;</div><div class="line">		writeAccesses++;</div><div class="line">		writingThread = callingThread;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	public synchronized void unlockWrite() throws InterruptedException&#123;</div><div class="line">		writeAccesses--;</div><div class="line">		if(writeAccesses == 0)&#123;</div><div class="line">			writingThread = null;</div><div class="line">		&#125;</div><div class="line">		notifyAll();</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean canGrantWriteAccess(Thread callingThread)&#123;</div><div class="line">		if(isOnlyReader(callingThread)) return true;</div><div class="line">		if(hasReaders()) return false;</div><div class="line">		if(writingThread == null) return true;</div><div class="line">		if(!isWriter(callingThread)) return false;</div><div class="line">		return true;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean hasReaders()&#123;</div><div class="line">		return readingThreads.size() &gt; 0;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean isWriter(Thread callingThread)&#123;</div><div class="line">		return writingThread == callingThread;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean isOnlyReader(Thread thread)&#123;</div><div class="line">		return readers == 1 &amp;&amp; readingThreads.get(callingThread) != null;</div><div class="line">	&#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>现在ReadWriteLock类就可以从读锁升级到写锁了。</p>
+<h4 id="写锁降级到读锁"><a href="#写锁降级到读锁" class="headerlink" title="写锁降级到读锁"></a>写锁降级到读锁</h4><p>有时拥有写锁的线程也希望得到读锁。如果一个线程拥有了写锁，那么自然其它线程是不可能拥有读锁或写锁了。所以对于一个拥有写锁的线程，再获得读锁，是不会有什么危险的。我们仅仅需要对上面canGrantReadAccess方法进行简单地修改：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line">public class ReadWriteLock&#123;</div><div class="line">	private boolean canGrantReadAccess(Thread callingThread)&#123;</div><div class="line">		if(isWriter(callingThread)) return true;</div><div class="line">		if(writingThread != null) return false;</div><div class="line">		if(isReader(callingThread) return true;</div><div class="line">		if(writeRequests &gt; 0) return false;</div><div class="line">		return true;</div><div class="line">	&#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<h4 id="可重入的ReadWriteLock的完整实现"><a href="#可重入的ReadWriteLock的完整实现" class="headerlink" title="可重入的ReadWriteLock的完整实现"></a>可重入的ReadWriteLock的完整实现</h4><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div><div class="line">62</div><div class="line">63</div><div class="line">64</div><div class="line">65</div><div class="line">66</div><div class="line">67</div><div class="line">68</div><div class="line">69</div><div class="line">70</div><div class="line">71</div><div class="line">72</div><div class="line">73</div><div class="line">74</div><div class="line">75</div><div class="line">76</div><div class="line">77</div><div class="line">78</div><div class="line">79</div><div class="line">80</div><div class="line">81</div><div class="line">82</div><div class="line">83</div><div class="line">84</div><div class="line">85</div><div class="line">86</div><div class="line">87</div><div class="line">88</div><div class="line">89</div><div class="line">90</div><div class="line">91</div><div class="line">92</div><div class="line">93</div><div class="line">94</div><div class="line">95</div><div class="line">96</div><div class="line">97</div><div class="line">98</div><div class="line">99</div><div class="line">100</div><div class="line">101</div><div class="line">102</div><div class="line">103</div><div class="line">104</div><div class="line">105</div><div class="line">106</div><div class="line">107</div><div class="line">108</div><div class="line">109</div><div class="line">110</div><div class="line">111</div></pre></td><td class="code"><pre><div class="line">public class ReadWriteLock&#123;</div><div class="line">	private Map&lt;Thread, Integer&gt; readingThreads =</div><div class="line">		new HashMap&lt;Thread, Integer&gt;();</div><div class="line"></div><div class="line">	private int writeAccesses    = 0;</div><div class="line">	private int writeRequests    = 0;</div><div class="line">	private Thread writingThread = null;</div><div class="line"></div><div class="line">	public synchronized void lockRead() </div><div class="line">		throws InterruptedException&#123;</div><div class="line">		Thread callingThread = Thread.currentThread();</div><div class="line">		while(! canGrantReadAccess(callingThread))&#123;</div><div class="line">			wait();</div><div class="line">		&#125;</div><div class="line"></div><div class="line">		readingThreads.put(callingThread,</div><div class="line">			(getReadAccessCount(callingThread) + 1));</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean canGrantReadAccess(Thread callingThread)&#123;</div><div class="line">		if(isWriter(callingThread)) return true;</div><div class="line">		if(hasWriter()) return false;</div><div class="line">		if(isReader(callingThread)) return true;</div><div class="line">		if(hasWriteRequests()) return false;</div><div class="line">		return true;</div><div class="line">	&#125;</div><div class="line"></div><div class="line"></div><div class="line">	public synchronized void unlockRead()&#123;</div><div class="line">		Thread callingThread = Thread.currentThread();</div><div class="line">		if(!isReader(callingThread))&#123;</div><div class="line">			throw new IllegalMonitorStateException(</div><div class="line">				&quot;Calling Thread does not&quot; +</div><div class="line">				&quot; hold a read lock on this ReadWriteLock&quot;);</div><div class="line">		&#125;</div><div class="line">		int accessCount = getReadAccessCount(callingThread);</div><div class="line">		if(accessCount == 1)&#123; </div><div class="line">			readingThreads.remove(callingThread); </div><div class="line">		&#125; else &#123; </div><div class="line">			readingThreads.put(callingThread, (accessCount -1));</div><div class="line">		&#125;</div><div class="line">		notifyAll();</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	public synchronized void lockWrite() </div><div class="line">		throws InterruptedException&#123;</div><div class="line">		writeRequests++;</div><div class="line">		Thread callingThread = Thread.currentThread();</div><div class="line">		while(!canGrantWriteAccess(callingThread))&#123;</div><div class="line">			wait();</div><div class="line">		&#125;</div><div class="line">		writeRequests--;</div><div class="line">		writeAccesses++;</div><div class="line">		writingThread = callingThread;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	public synchronized void unlockWrite() </div><div class="line">		throws InterruptedException&#123;</div><div class="line">		if(!isWriter(Thread.currentThread())&#123;</div><div class="line">		throw new IllegalMonitorStateException(</div><div class="line">			&quot;Calling Thread does not&quot; +</div><div class="line">			&quot; hold the write lock on this ReadWriteLock&quot;);</div><div class="line">		&#125;</div><div class="line">		writeAccesses--;</div><div class="line">		if(writeAccesses == 0)&#123;</div><div class="line">			writingThread = null;</div><div class="line">		&#125;</div><div class="line">		notifyAll();</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean canGrantWriteAccess(Thread callingThread)&#123;</div><div class="line">		if(isOnlyReader(callingThread)) return true;</div><div class="line">		if(hasReaders()) return false;</div><div class="line">		if(writingThread == null) return true;</div><div class="line">		if(!isWriter(callingThread)) return false;</div><div class="line">		return true;</div><div class="line">	&#125;</div><div class="line"></div><div class="line"></div><div class="line">	private int getReadAccessCount(Thread callingThread)&#123;</div><div class="line">		Integer accessCount = readingThreads.get(callingThread);</div><div class="line">		if(accessCount == null) return 0;</div><div class="line">		return accessCount.intValue();</div><div class="line">	&#125;</div><div class="line"></div><div class="line"></div><div class="line">	private boolean hasReaders()&#123;</div><div class="line">		return readingThreads.size() &gt; 0;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean isReader(Thread callingThread)&#123;</div><div class="line">		return readingThreads.get(callingThread) != null;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean isOnlyReader(Thread callingThread)&#123;</div><div class="line">		return readingThreads.size() == 1 &amp;&amp;</div><div class="line">			readingThreads.get(callingThread) != null;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean hasWriter()&#123;</div><div class="line">		return writingThread != null;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean isWriter(Thread callingThread)&#123;</div><div class="line">		return writingThread == callingThread;</div><div class="line">	&#125;</div><div class="line"></div><div class="line">	private boolean hasWriteRequests()&#123;</div><div class="line">		return this.writeRequests &gt; 0;</div><div class="line">	&#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+    </article>
+    <!-- 前后页  -->
+    <ul class="post-paginator">
+        <li class="next">
+            
+                <div class="nextSlogan">Next Post</div>
+                <a href= "/2018/04/13/Shell用法/" title= Shell scripts介绍 >
+                    <div class="nextTitle">Shell scripts介绍</div>
+                </a>
+            
+        </li>
+        <li class="previous">
+            
+                <div class="prevSlogan">Previous Post</div>
+                <a href= "/2018/04/13/使用idea搭建SSM框架/" title= 使用idea搭建SSM框架 >
+                    <div class="prevTitle">使用idea搭建SSM框架</div>
+                </a>
+            
+        </li>
+    </ul>
+    <!-- 评论插件 -->
+    <!-- 来必力City版安装代码 -->
+
+<!-- City版安装代码已完成 -->
+    
+    
+    <!--PC版-->
+
+    <!--PC版-->
+
+
+    
+    <!-- 评论 -->
+</main>
+            <!-- profile -->
+            
+        </div>
+        <footer class="footer footer-unloaded">
+    <!-- social  -->
+    
+    <div class="social">
+        
+    
+        
+            
+                <a href="mailto:457838017@qq.com" class="iconfont-archer email" title=email ></a>
+            
+        
+    
+        
+            
+                <a href="https://github.com/zhaohunshi" class="iconfont-archer github" target="_blank" title=github></a>
+            
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+    </div>
+    
+    <!-- powered by Hexo  -->
+    <div class="copyright">
+        <span id="hexo-power">Powered by <a href="https://hexo.io/" target="_blank">Hexo</a></span><span class="iconfont-archer power">&#xe635;</span><span id="theme-info">theme <a href="https://github.com/fi3ework/hexo-theme-archer" target="_blank">Archer</a></span>
+    </div>
+    <!-- 不蒜子  -->
+    
+    <div class="busuanzi-container">
+        <span id="busuanzi_container_site_pv">PV: <span id="busuanzi_value_site_pv"></span>
+        </span>
+    </div>
+    
+</footer>
+    </div>
+    <!-- toc -->
+    
+    <div class="toc-wrapper" style=
+    
+
+
+
+
+
+
+
+top:50vh;
+
+    >
+        <div class="toc-catalog">
+            <span class="iconfont-archer catalog-icon">&#xe613;</span><span>CATALOG</span>
+        </div>
+        <ol class="toc"><li class="toc-item toc-level-4"><a class="toc-link" href="#读-写锁的重入"><span class="toc-number">1.</span> <span class="toc-text">读/写锁的重入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#读锁重入"><span class="toc-number">2.</span> <span class="toc-text">读锁重入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#写锁重入"><span class="toc-number">3.</span> <span class="toc-text">写锁重入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#读锁升级到写锁"><span class="toc-number">4.</span> <span class="toc-text">读锁升级到写锁</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#写锁降级到读锁"><span class="toc-number">5.</span> <span class="toc-text">写锁降级到读锁</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#可重入的ReadWriteLock的完整实现"><span class="toc-number">6.</span> <span class="toc-text">可重入的ReadWriteLock的完整实现</span></a></li></ol>
+    </div>
+    
+    <div class="back-top iconfont-archer">&#xe639;</div>
+    <div class="sidebar sidebar-hide">
+    <ul class="sidebar-tabs sidebar-tabs-active-0">
+        <li class="sidebar-tab-archives"><span class="iconfont-archer">&#xe67d;</span><span class="tab-name">Archive</span></li>
+        <li class="sidebar-tab-tags"><span class="iconfont-archer">&#xe61b;</span><span class="tab-name">Tag</span></li>
+        <li class="sidebar-tab-categories"><span class="iconfont-archer">&#xe666;</span><span class="tab-name">Cate</span></li>
+    </ul>
+    <div class="sidebar-content sidebar-content-show-archive">
+          <div class="sidebar-panel-archives">
+    <!-- 在ejs中将archive按照时间排序 -->
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    <div class="total-archive"> Total : 5 </div>
+    
+    <div class="post-archive">
+    
+    
+    
+    
+    <div class="archive-year"> 2018 </div>
+    <ul class="year-list">
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">04/13</span><a class="archive-post-title" href= "/2018/04/13/关于HashMap/" >关于HashMap</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">04/13</span><a class="archive-post-title" href= "/2018/04/13/使用idea搭建SSM框架/" >使用idea搭建SSM框架</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">04/13</span><a class="archive-post-title" href= "/2018/04/13/Java中的读-写锁/" >Java中的读/写锁</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">04/13</span><a class="archive-post-title" href= "/2018/04/13/Shell用法/" >Shell scripts介绍</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">04/13</span><a class="archive-post-title" href= "/2018/04/13/Queue用法/" >Queue用法</a>
+        </li>
+    
+    </div>
+  </div>
+        <div class="sidebar-panel-tags">
+    <div class="sidebar-tags-name">
+    
+        <span class="sidebar-tag-name" data-tags="Java"><span class="iconfont-archer">&#xe606;</span>Java</span>
+    
+        <span class="sidebar-tag-name" data-tags="集合"><span class="iconfont-archer">&#xe606;</span>集合</span>
+    
+        <span class="sidebar-tag-name" data-tags="Linux"><span class="iconfont-archer">&#xe606;</span>Linux</span>
+    
+        <span class="sidebar-tag-name" data-tags="Shell"><span class="iconfont-archer">&#xe606;</span>Shell</span>
+    
+        <span class="sidebar-tag-name" data-tags="并发编程"><span class="iconfont-archer">&#xe606;</span>并发编程</span>
+    
+        <span class="sidebar-tag-name" data-tags="框架"><span class="iconfont-archer">&#xe606;</span>框架</span>
+    
+    </div>
+    <div class="iconfont-archer sidebar-tags-empty">&#xe678;</div>
+    <div class="tag-load-fail" style="display: none; color: #ccc; font-size: 0.6rem;">
+    缺失模块。<br/>
+    1、请确保node版本大于6.2<br/>
+    2、在博客根目录（注意不是archer根目录）执行以下命令：<br/>
+    <span style="color: #f75357; font-size: 1rem; line-height: 2rem;">npm i hexo-generator-json-content --save</span><br/>
+    3、在根目录_config.yml里添加配置：
+    <pre style="color: #787878; font-size: 0.6rem;">
+jsonContent:
+  meta: false
+  pages: false
+  posts:
+    title: true
+    date: true
+    path: true
+    text: false
+    raw: false
+    content: false
+    slug: false
+    updated: false
+    comments: false
+    link: false
+    permalink: false
+    excerpt: false
+    categories: true
+    tags: true</pre>
+    </div> 
+    <div class="sidebar-tags-list"></div>
+</div>
+        <div class="sidebar-panel-categories">
+    <div class="sidebar-categories-name">
+    
+    </div>
+    <div class="iconfont-archer sidebar-categories-empty">&#xe678;</div>
+    <div class="sidebar-categories-list"></div>
+</div>
+    </div>
+</div> 
+    <script>
+    var siteMeta = {
+        root: '/',
+        author: 'CX'
+    }
+</script>
+    <!-- busuanzi  -->
+    
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    
+    <!-- CNZZ  -->
+    
+    </div>
+    <!-- async load share.js -->
+    
+        <script src="/scripts/share.js" async></script>    
+    
+    </body>
+</html>
+
+
